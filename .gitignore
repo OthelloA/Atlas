@@ -4,7 +4,7 @@ node_modules/
 # Build outputs
 dist/
 dist-ssr/
-src-tauri/target/
+**/src-tauri/target/
 
 # Vite
 .vite/
@@ -33,3 +33,5 @@ yarn-error.log*
 
 # Tauri
 src-tauri/gen/
+
+.claude
