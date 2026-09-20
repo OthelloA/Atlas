@@ -10,9 +10,10 @@ import { FuncTreeView } from "./components/FuncTreeView";
 import { CallTraceView } from "./components/CallTraceView";
 import { OnboardingPackExport } from "./components/OnboardingPackExport";
 import { AuditView } from "./components/AuditView";
+import { ArchitectureView } from "./components/ArchitectureView";
 import type { AnalysisProgress, AuditResult, RepoAnalysis } from "./types";
 
-type TabId = "overview" | "symbols" | "trace" | "audit";
+type TabId = "overview" | "architecture" | "symbols" | "trace" | "audit";
 type AuditStatus = "idle" | "running" | "done" | "error";
 
 function App() {
@@ -114,6 +115,7 @@ function App() {
           <section className="analysis-layout">
             <aside className="tab-sidebar">
               <button className={activeTab === "overview" ? "active" : ""} onClick={() => setActiveTab("overview")}>Overview</button>
+              <button className={activeTab === "architecture" ? "active" : ""} onClick={() => setActiveTab("architecture")}>Architecture</button>
               <button className={activeTab === "symbols" ? "active" : ""} onClick={() => setActiveTab("symbols")}>Func Tree</button>
               <button className={activeTab === "trace" ? "active" : ""} onClick={() => setActiveTab("trace")}>Call Trace</button>
               <button className={`tab-audit-btn ${activeTab === "audit" ? "active" : ""}`} onClick={() => setActiveTab("audit")}>
@@ -140,6 +142,7 @@ function App() {
                 </div>
               )}
               {activeTab === "overview" && <OverviewView analysis={analysis} />}
+              {activeTab === "architecture" && <ArchitectureView graph={analysis.architecture} />}
               {activeTab === "symbols" && <FuncTreeView symbols={analysis.symbols} />}
               {activeTab === "trace" && <CallTraceView nodes={analysis.call_trace} />}
               {activeTab === "audit" && (

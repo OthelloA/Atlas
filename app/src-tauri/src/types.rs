@@ -242,9 +242,15 @@ pub struct ArchitectureNode {
     pub id: String,
     pub name: String,
     pub node_type: String,
+    pub c4_level: String,
+    pub parent_id: Option<String>,
+    pub is_entry_point: bool,
     pub description: String,
     pub confidence: String,
+    pub confidence_score: f32,
+    pub deterministic: bool,
     pub source_refs: Vec<String>,
+    pub evidence: Vec<ArchitectureEvidence>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -253,7 +259,17 @@ pub struct ArchitectureEdge {
     pub target: String,
     pub relationship: String,
     pub confidence: String,
-    pub evidence: Vec<String>,
+    pub confidence_score: f32,
+    pub deterministic: bool,
+    pub evidence: Vec<ArchitectureEvidence>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct ArchitectureEvidence {
+    pub rule: String,
+    pub kind: String,
+    pub source_refs: Vec<String>,
+    pub explanation: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

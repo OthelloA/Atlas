@@ -55,13 +55,26 @@ export interface MonorepoInfo {
   scope_reason: string;
 }
 
+export interface ArchitectureEvidence {
+  rule: string;
+  kind: string;
+  source_refs: string[];
+  explanation: string;
+}
+
 export interface ArchitectureNode {
   id: string;
   name: string;
   node_type: string;
+  c4_level: string;
+  parent_id: string | null;
+  is_entry_point: boolean;
   description: string;
   confidence: string;
+  confidence_score: number;
+  deterministic: boolean;
   source_refs: string[];
+  evidence: ArchitectureEvidence[];
 }
 
 export interface ArchitectureEdge {
@@ -69,7 +82,9 @@ export interface ArchitectureEdge {
   target: string;
   relationship: string;
   confidence: string;
-  evidence: string[];
+  confidence_score: number;
+  deterministic: boolean;
+  evidence: ArchitectureEvidence[];
 }
 
 export interface ArchitectureGraph {

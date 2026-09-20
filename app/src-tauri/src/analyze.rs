@@ -187,8 +187,8 @@ pub async fn analyze_repo_impl(
     );
     let (symbols, symbol_warnings) = extract_symbols(&contents);
     warnings.extend(symbol_warnings);
-    let architecture = build_architecture_graph(&contents, &symbols);
     let entry_points = detect_entry_points(&contents, &symbols);
+    let architecture = build_architecture_graph(&contents, &symbols, &entry_points);
     if entry_points.is_empty() {
         warnings.push("No likely entry points detected".to_string());
     }

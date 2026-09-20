@@ -108,4 +108,46 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .audit-card summary { cursor: pointer; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .audit-card-body { color: #cbd5e1; padding: 8px 4px 0 34px; }
 .audit-card code { white-space: pre-wrap; }
+.architecture-toolbar { align-items: flex-start; }
+.architecture-toolbar h2 { margin: 6px 0; }
+.architecture-breadcrumbs { display: flex; align-items: center; gap: 6px; min-height: 22px; }
+.architecture-breadcrumbs .link-button { padding: 0; }
+.architecture-detail-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 12px; }
+.architecture-open-button { margin: 0; }
+.architecture-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+.architecture-toggle { display: inline-flex; align-items: center; gap: 6px; color: #cbd5e1; font-size: 13px; white-space: nowrap; }
+.architecture-summary { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
+.confidence-legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; background: #172033; border: 1px solid #334155; border-radius: 10px; padding: 10px 12px; margin: 12px 0; color: #cbd5e1; font-size: 12px; }
+.confidence-legend strong { color: #f8fafc; }
+.legend-dot { width: 9px; height: 9px; display: inline-block; border-radius: 50%; margin-right: 4px; }
+.legend-dot.high { background: #60a5fa; }
+.legend-dot.medium { background: #facc15; }
+.legend-dot.low { background: #f87171; }
+.architecture-canvas { background: #020617; border: 1px solid #1e293b; border-radius: 12px; overflow-x: auto; padding: 8px; }
+.architecture-canvas svg { display: block; min-width: 760px; }
+.architecture-edge { stroke: #64748b; stroke-width: 1.5; opacity: .8; transition: opacity .15s ease, stroke-width .15s ease; }
+.architecture-edge.dimmed, .architecture-node.dimmed { opacity: .12; }
+.architecture-edge.connected { opacity: 1; stroke-width: 2.5; }
+.architecture-node { transition: opacity .15s ease; }
+.architecture-edge.edge-high { stroke: #60a5fa; }
+.architecture-edge.edge-low { stroke-dasharray: 5 4; opacity: .55; }
+.architecture-edge-label { fill: #94a3b8; font-size: 10px; text-anchor: middle; }
+.architecture-node { cursor: pointer; outline: none; }
+.architecture-node rect { fill: #1e293b; stroke: #475569; stroke-width: 1.5; }
+.architecture-node.node-high rect { stroke: #2563eb; }
+.architecture-node.node-medium rect { stroke: #64748b; }
+.architecture-node.node-low rect { stroke: #a16207; stroke-dasharray: 4 3; }
+.architecture-node:hover rect, .architecture-node:focus rect, .architecture-node.selected rect { fill: #263449; stroke: #93c5fd; stroke-width: 2; }
+.architecture-node-type { fill: #93c5fd; font-size: 10px; text-transform: uppercase; letter-spacing: .03em; }
+.architecture-node-name { fill: #f8fafc; font-size: 13px; font-weight: 700; }
+.architecture-node-ref { fill: #94a3b8; font-size: 10px; }
+.architecture-node text { pointer-events: none; }
+.architecture-details { margin-top: 14px; background: #020617; border: 1px solid #334155; border-radius: 12px; padding: 14px; }
+.architecture-details-header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.architecture-details h3 { margin: 7px 0 0; word-break: break-word; }
+.architecture-details p { color: #cbd5e1; }
+.architecture-details ul { margin: 8px 0 14px; padding-left: 20px; color: #cbd5e1; }
+.confidence-high { background: #14532d; color: #bbf7d0; }
+.confidence-medium { background: #854d0e; color: #fef08a; }
+.confidence-low { background: #7f1d1d; color: #fecaca; }
 @media (max-width: 800px) { .analysis-layout { grid-template-columns: 1fr; } .repo-opener { grid-template-columns: 1fr; } .audit-header { display: grid; } }
