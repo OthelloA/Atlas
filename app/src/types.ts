@@ -55,6 +55,29 @@ export interface MonorepoInfo {
   scope_reason: string;
 }
 
+export interface ArchitectureNode {
+  id: string;
+  name: string;
+  node_type: string;
+  description: string;
+  confidence: string;
+  source_refs: string[];
+}
+
+export interface ArchitectureEdge {
+  source: string;
+  target: string;
+  relationship: string;
+  confidence: string;
+  evidence: string[];
+}
+
+export interface ArchitectureGraph {
+  nodes: ArchitectureNode[];
+  edges: ArchitectureEdge[];
+  generated_from: string;
+}
+
 export interface RepoAnalysis {
   repo_url: string;
   repo_name: string;
@@ -62,6 +85,7 @@ export interface RepoAnalysis {
   entry_points: string[];
   symbols: SymbolEntry[];
   call_trace: CallTraceNode[];
+  architecture: ArchitectureGraph;
   overview_md: string;
   truncated: boolean;
   warnings: string[];

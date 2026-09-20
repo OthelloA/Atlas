@@ -1,6 +1,7 @@
 mod ai;
 mod analysis_cache;
 mod analyze;
+mod architecture;
 mod audit;
 mod audit_rules;
 mod bedrock;
@@ -9,9 +10,9 @@ mod config;
 mod entry_tracer;
 mod github;
 mod onboarding_pack;
-mod prompts;
 #[allow(dead_code)]
 mod pr_parser;
+mod prompts;
 mod repo_analyzer;
 mod repo_parser;
 mod symbol_extractor;

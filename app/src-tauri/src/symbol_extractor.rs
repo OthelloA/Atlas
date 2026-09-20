@@ -1,10 +1,15 @@
 use crate::types::{FileContent, SymbolEntry};
-use regex::Regex;
 use std::collections::BTreeSet;
+use tree_sitter::{Node, Parser};
 
+/// Extract symbols with language parsers instead of line-oriented regular expressions.
+/// The parser is deliberately conservative: unsupported syntax is reported as a warning
+/// rather than presented as a confidently incorrect symbol.
 pub fn extract_symbols(files: &[FileContent]) -> (Vec<SymbolEntry>, Vec<String>) {
     let mut symbols = Vec::new();
     let mut warnings = Vec::new();
+    let mut parsed_files = 0usize;
+    let mut unsupported_files = 0usize;
 
     for file in files {
         if file.content.is_empty() {
@@ -13,114 +18,269 @@ pub fn extract_symbols(files: &[FileContent]) -> (Vec<SymbolEntry>, Vec<String>)
             }
             continue;
         }
-        let start = symbols.len();
-        if is_ts_js(&file.path) {
-            extract_ts_js(file, &mut symbols);
-        } else if file.path.ends_with(".py") {
-            extract_python(file, &mut symbols);
+
+        let Some(language) = language_for_path(&file.path) else {
+            unsupported_files += 1;
+            continue;
+        };
+
+        let mut parser = Parser::new();
+        if parser.set_language(&language).is_err() {
+            warnings.push(format!("{}: parser could not be configured", file.path));
+            continue;
         }
-        populate_body_calls(file, &mut symbols[start..]);
+        let Some(tree) = parser.parse(&file.content, None) else {
+            warnings.push(format!("{}: parser returned no syntax tree", file.path));
+            continue;
+        };
+        parsed_files += 1;
+        let before = symbols.len();
+        collect_declarations(tree.root_node(), file, &mut symbols);
+        if tree.root_node().has_error() {
+            warnings.push(format!(
+                "{}: syntax errors were present; results may be incomplete",
+                file.path
+            ));
+        }
+        if symbols.len() == before && is_supported_source(&file.path) {
+            warnings.push(format!("{}: no supported declarations detected", file.path));
+        }
     }
 
     if symbols.is_empty() {
-        warnings.push("No exported/public symbols detected in selected files".to_string());
+        warnings.push("No parsed symbols detected in selected files".to_string());
     }
-    warnings.push("Symbol extraction is best-effort and may miss re-exports, dynamic exports, decorators, overloads, and multiline signatures".to_string());
+    if parsed_files > 0 {
+        warnings.push(format!(
+            "Parsed {} source file(s) with language-aware syntax trees",
+            parsed_files
+        ));
+    }
+    if unsupported_files > 0 {
+        warnings.push(format!(
+            "Skipped {} file(s) with no supported parser",
+            unsupported_files
+        ));
+    }
 
     (symbols, warnings)
 }
 
-fn extract_ts_js(file: &FileContent, symbols: &mut Vec<SymbolEntry>) {
-    let patterns: Vec<(Regex, &str)> = vec![
-        (Regex::new(r"^\s*export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)").unwrap(), "function"),
-        (Regex::new(r"^\s*export\s+class\s+([A-Za-z_$][\w$]*)").unwrap(), "class"),
-        (Regex::new(r"^\s*export\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)").unwrap(), "export"),
-        (Regex::new(r"^\s*export\s+default\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)?").unwrap(), "function"),
-        (Regex::new(r"^\s*export\s+default\s+class\s+([A-Za-z_$][\w$]*)?").unwrap(), "class"),
-    ];
-
-    for (idx, line) in file.content.lines().enumerate() {
-        for (regex, kind) in &patterns {
-            if let Some(caps) = regex.captures(line) {
-                let name = caps.get(1).map(|m| m.as_str()).filter(|s| !s.is_empty()).unwrap_or("default");
-                symbols.push(SymbolEntry {
-                    name: name.to_string(),
-                    kind: kind.to_string(),
-                    file: file.path.clone(),
-                    line: (idx + 1) as u64,
-                    signature: line.trim().to_string(),
-                    calls: extract_calls(line),
-                });
-                break;
-            }
-        }
+fn language_for_path(path: &str) -> Option<tree_sitter::Language> {
+    if path.ends_with(".tsx") {
+        Some(tree_sitter_typescript::LANGUAGE_TSX.into())
+    } else if path.ends_with(".ts") {
+        Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into())
+    } else if path.ends_with(".jsx")
+        || path.ends_with(".js")
+        || path.ends_with(".mjs")
+        || path.ends_with(".cjs")
+    {
+        Some(tree_sitter_javascript::LANGUAGE.into())
+    } else if path.ends_with(".py") {
+        Some(tree_sitter_python::LANGUAGE.into())
+    } else if path.ends_with(".rs") {
+        Some(tree_sitter_rust::LANGUAGE.into())
+    } else {
+        None
     }
 }
 
-fn extract_python(file: &FileContent, symbols: &mut Vec<SymbolEntry>) {
-    let def_re = Regex::new(r"^(async\s+def|def)\s+([A-Za-z_]\w*)").unwrap();
-    let class_re = Regex::new(r"^class\s+([A-Za-z_]\w*)").unwrap();
-    for (idx, line) in file.content.lines().enumerate() {
-        let trimmed = line.trim_start();
-        if trimmed.len() != line.len() {
-            continue;
-        }
-        if let Some(caps) = def_re.captures(line) {
+fn is_supported_source(path: &str) -> bool {
+    language_for_path(path).is_some()
+}
+
+fn collect_declarations(node: Node<'_>, file: &FileContent, symbols: &mut Vec<SymbolEntry>) {
+    let kind = node.kind();
+    if is_declaration_kind(kind) && should_include(node, kind) {
+        if let Some(name) = declaration_name(node, file.content.as_bytes()) {
+            let start = node.start_position();
+            let signature = file
+                .content
+                .lines()
+                .nth(start.row)
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            let calls = collect_calls(node, file.content.as_bytes());
             symbols.push(SymbolEntry {
-                name: caps[2].to_string(),
-                kind: "function".to_string(),
+                name,
+                kind: declaration_category(kind).to_string(),
                 file: file.path.clone(),
-                line: (idx + 1) as u64,
-                signature: line.trim().to_string(),
-                calls: extract_calls(line),
-            });
-        } else if let Some(caps) = class_re.captures(line) {
-            symbols.push(SymbolEntry {
-                name: caps[1].to_string(),
-                kind: "class".to_string(),
-                file: file.path.clone(),
-                line: (idx + 1) as u64,
-                signature: line.trim().to_string(),
-                calls: extract_calls(line),
+                line: (start.row + 1) as u64,
+                signature,
+                calls,
             });
         }
     }
-}
 
-fn extract_calls(line: &str) -> Vec<String> {
-    let call_re = Regex::new(r"\b([A-Za-z_$][\w$]*)\s*\(").unwrap();
-    let keywords: BTreeSet<&str> = ["if", "for", "while", "switch", "catch", "function", "return", "def", "class"]
-        .into_iter()
-        .collect();
-    call_re
-        .captures_iter(line)
-        .filter_map(|caps| caps.get(1).map(|m| m.as_str().to_string()))
-        .filter(|name| !keywords.contains(name.as_str()))
-        .collect()
-}
-
-fn populate_body_calls(file: &FileContent, symbols: &mut [SymbolEntry]) {
-    if symbols.is_empty() {
-        return;
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_declarations(child, file, symbols);
     }
-    let lines: Vec<&str> = file.content.lines().collect();
-    let mut starts: Vec<usize> = symbols.iter().map(|s| s.line.saturating_sub(1) as usize).collect();
-    starts.push(lines.len());
-    for idx in 0..symbols.len() {
-        let start = starts[idx];
-        let end = starts[idx + 1].min(lines.len());
-        let mut calls = BTreeSet::new();
-        for line in &lines[start..end] {
-            for call in extract_calls(line) {
-                if call != symbols[idx].name {
-                    calls.insert(call);
+}
+
+fn is_declaration_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        "function_declaration"
+            | "function_definition"
+            | "function_item"
+            | "method_definition"
+            | "class_declaration"
+            | "class_definition"
+            | "class_definition_statement"
+            | "struct_item"
+            | "enum_item"
+            | "trait_item"
+            | "interface_declaration"
+            | "type_alias_declaration"
+            | "lexical_declaration"
+    )
+}
+
+fn declaration_category(kind: &str) -> &'static str {
+    match kind {
+        "class_declaration"
+        | "class_definition"
+        | "class_definition_statement"
+        | "struct_item"
+        | "enum_item"
+        | "trait_item" => "class",
+        "interface_declaration" => "interface",
+        "type_alias_declaration" => "type",
+        "lexical_declaration" => "export",
+        _ => "function",
+    }
+}
+
+fn declaration_name(node: Node<'_>, source: &[u8]) -> Option<String> {
+    let candidate = node.child_by_field_name("name").or_else(|| {
+        if node.kind() == "lexical_declaration" {
+            let mut cursor = node.walk();
+            let declarator = node
+                .named_children(&mut cursor)
+                .find(|child| child.kind() == "variable_declarator");
+            declarator.and_then(|declarator| declarator.child_by_field_name("name"))
+        } else {
+            node.child_by_field_name("declarator")
+        }
+    });
+    candidate
+        .and_then(|name| name.utf8_text(source).ok())
+        .map(str::to_string)
+        .filter(|name| !name.contains('(') && !name.contains('='))
+}
+
+fn should_include(node: Node<'_>, kind: &str) -> bool {
+    // JavaScript/TypeScript projects commonly keep private helpers in the same file.
+    // Include declarations, but retain the existing public-only behavior for lexical
+    // declarations by requiring an export ancestor.
+    if kind == "lexical_declaration" {
+        return has_ancestor(node, "export_statement");
+    }
+    // Python and Rust declarations are useful even when not explicitly exported.
+    true
+}
+
+fn has_ancestor(mut node: Node<'_>, kind: &str) -> bool {
+    while let Some(parent) = node.parent() {
+        if parent.kind() == kind {
+            return true;
+        }
+        node = parent;
+    }
+    false
+}
+
+fn collect_calls(node: Node<'_>, source: &[u8]) -> Vec<String> {
+    let mut calls = BTreeSet::new();
+    collect_calls_inner(node, source, &mut calls);
+    calls.into_iter().collect()
+}
+
+fn collect_calls_inner(node: Node<'_>, source: &[u8], calls: &mut BTreeSet<String>) {
+    if matches!(
+        node.kind(),
+        "call_expression" | "call" | "function_call" | "macro_invocation"
+    ) {
+        if let Some(function) = node
+            .child_by_field_name("function")
+            .or_else(|| node.child_by_field_name("macro"))
+            .or_else(|| node.named_child(0))
+        {
+            if let Ok(text) = function.utf8_text(source) {
+                let name = text.trim().trim_start_matches("self.").to_string();
+                if is_valid_call_name(&name) {
+                    calls.insert(name);
                 }
             }
         }
-        symbols[idx].calls = calls.into_iter().collect();
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_calls_inner(child, source, calls);
     }
 }
 
-fn is_ts_js(path: &str) -> bool {
-    path.ends_with(".ts") || path.ends_with(".tsx") || path.ends_with(".js") || path.ends_with(".jsx")
+fn is_valid_call_name(name: &str) -> bool {
+    !name.is_empty()
+        && !matches!(
+            name,
+            "if" | "for" | "while" | "switch" | "catch" | "function" | "return"
+        )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn file(path: &str, content: &str) -> FileContent {
+        FileContent {
+            path: path.to_string(),
+            content: content.to_string(),
+            truncated: false,
+            warning: None,
+        }
+    }
+
+    #[test]
+    fn parses_typescript_functions_and_calls() {
+        let (symbols, warnings) = extract_symbols(&[file(
+            "src/app.ts",
+            "export function start() { loadConfig(); }\nfunction loadConfig() { return parse(); }",
+        )]);
+        assert!(warnings
+            .iter()
+            .any(|warning| warning.contains("syntax trees")));
+        assert_eq!(symbols[0].name, "start");
+        assert!(symbols[0].calls.contains(&"loadConfig".to_string()));
+        assert_eq!(symbols[1].name, "loadConfig");
+    }
+
+    #[test]
+    fn parses_exported_constants() {
+        let (symbols, _) =
+            extract_symbols(&[file("src/config.ts", "export const config = loadConfig();")]);
+        assert_eq!(symbols[0].name, "config");
+        assert_eq!(symbols[0].kind, "export");
+        assert!(symbols[0].calls.contains(&"loadConfig".to_string()));
+    }
+
+    #[test]
+    fn parses_python_and_rust_declarations() {
+        let (symbols, _) = extract_symbols(&[
+            file(
+                "main.py",
+                "def run():\n    print('ok')\n\nclass Worker:\n    pass",
+            ),
+            file("src/lib.rs", "pub fn run() { work(); }\nstruct Worker;"),
+        ]);
+        assert!(symbols
+            .iter()
+            .any(|symbol| symbol.name == "run" && symbol.file == "main.py"));
+        assert!(symbols
+            .iter()
+            .any(|symbol| symbol.name == "Worker" && symbol.file == "src/lib.rs"));
+    }
 }

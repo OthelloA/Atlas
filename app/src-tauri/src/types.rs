@@ -211,11 +211,49 @@ pub struct RepoAnalysis {
     pub entry_points: Vec<String>,
     pub symbols: Vec<SymbolEntry>,
     pub call_trace: Vec<CallTraceNode>,
+    #[serde(default)]
+    pub architecture: ArchitectureGraph,
     pub overview_md: String,
     pub truncated: bool,
     pub warnings: Vec<String>,
     pub onboarding_pack: OnboardingPack,
     pub monorepo: Option<MonorepoInfo>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct ArchitectureGraph {
+    pub nodes: Vec<ArchitectureNode>,
+    pub edges: Vec<ArchitectureEdge>,
+    pub generated_from: String,
+}
+
+impl Default for ArchitectureGraph {
+    fn default() -> Self {
+        Self {
+            nodes: Vec::new(),
+            edges: Vec::new(),
+            generated_from: "none".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct ArchitectureNode {
+    pub id: String,
+    pub name: String,
+    pub node_type: String,
+    pub description: String,
+    pub confidence: String,
+    pub source_refs: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct ArchitectureEdge {
+    pub source: String,
+    pub target: String,
+    pub relationship: String,
+    pub confidence: String,
+    pub evidence: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -12,6 +12,7 @@ struct RepoAnalysisExport<'a> {
     entry_points: &'a [String],
     symbols: &'a [crate::types::SymbolEntry],
     call_trace: &'a [crate::types::CallTraceNode],
+    architecture: &'a crate::types::ArchitectureGraph,
     overview_md: &'a str,
     truncated: bool,
     warnings: &'a [String],
@@ -35,6 +36,7 @@ pub fn build_onboarding_pack(
         entry_points: &analysis.entry_points,
         symbols: &analysis.symbols,
         call_trace: &analysis.call_trace,
+        architecture: &analysis.architecture,
         overview_md: &analysis.overview_md,
         truncated: analysis.truncated,
         warnings: &analysis.warnings,
@@ -60,7 +62,11 @@ pub fn export_onboarding_pack_to_dir(
     target_dir: &Path,
 ) -> Result<ExportResult, String> {
     let safe_repo = repo_name.replace('/', "-").replace(' ', "-");
-    let dir = target_dir.join(format!("atlas-{}-{}", safe_repo, Utc::now().format("%Y-%m-%d")));
+    let dir = target_dir.join(format!(
+        "atlas-{}-{}",
+        safe_repo,
+        Utc::now().format("%Y-%m-%d")
+    ));
     fs::create_dir_all(&dir).map_err(|e| format!("Failed to create export directory: {}", e))?;
 
     let files = [
@@ -97,7 +103,7 @@ Generated Atlas maps are available in the onboarding pack:
 - `start-here.md`
 - `symbols.json`
 - `call-trace.json`
-- `repo-analysis.json`
+- `repo-analysis.json` (includes the evidence-backed architecture graph)
 - `warnings.json`
 
 Before searching broadly, check these files first.
@@ -119,17 +125,40 @@ fn build_start_here(analysis: &RepoAnalysis, useful_commands: &[String]) -> Stri
     if let Some(monorepo) = &analysis.monorepo {
         if monorepo.detected {
             md.push_str("## Monorepo Scope\n");
-            md.push_str(&format!("- Selected scope: {}\n", monorepo.selected_scope.as_deref().unwrap_or("global bounded analysis")));
+            md.push_str(&format!(
+                "- Selected scope: {}\n",
+                monorepo
+                    .selected_scope
+                    .as_deref()
+                    .unwrap_or("global bounded analysis")
+            ));
             md.push_str(&format!("- Reason: {}\n", monorepo.scope_reason));
             if !monorepo.workspace_candidates.is_empty() {
                 md.push_str("- Workspace candidates:\n");
                 for candidate in &monorepo.workspace_candidates {
-                    md.push_str(&format!("  - `{}` — {}\n", candidate.path, candidate.reason));
+                    md.push_str(&format!(
+                        "  - `{}` — {}\n",
+                        candidate.path, candidate.reason
+                    ));
                 }
             }
             md.push('\n');
         }
     }
+
+    md.push_str("## Architecture Graph\n");
+    md.push_str(&format!(
+        "- Components: {}\n",
+        analysis.architecture.nodes.len()
+    ));
+    md.push_str(&format!(
+        "- Relationships: {}\n",
+        analysis.architecture.edges.len()
+    ));
+    md.push_str(&format!(
+        "- Generated from: {}\n\n",
+        analysis.architecture.generated_from
+    ));
 
     md.push_str("## First Files To Read\n");
     let mut files: Vec<String> = analysis.symbols.iter().map(|s| s.file.clone()).collect();

@@ -60,11 +60,11 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
         </div>
         <form onSubmit={handleSave}>
           <label className="settings-label" htmlFor="model">
-            Claude Model
+            AI Model
           </label>
           <p className="settings-hint">
-            A Claude model name (e.g. <code>claude-sonnet-4-6</code>) to use
-            via the <code>claude</code> CLI, or a Bedrock ARN for AWS.
+            Choose a provider with <code>claude:MODEL</code> or <code>codex:MODEL</code>.
+            You can also use a Bedrock ARN for AWS. Unprefixed names use Claude.
           </p>
           <input
             id="model"
@@ -75,7 +75,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
               setModel(e.target.value);
               setSaved(false);
             }}
-            placeholder="claude-sonnet-4-6 or arn:aws:bedrock:..."
+            placeholder="claude:claude-sonnet-4-6, codex:gpt-5.5, or arn:aws:bedrock:..."
             spellCheck={false}
           />
 
